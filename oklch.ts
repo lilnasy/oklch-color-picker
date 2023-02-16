@@ -8,6 +8,12 @@ export interface LCH {
     hue       : number
 }
 
+export interface LAB {
+    lightness : number
+    a         : number
+    b         : number
+}
+
 export interface RGB {
     red   : number
     green : number
@@ -53,19 +59,49 @@ export function fromRGB({ red, green, blue }: RGB): LCH {
  * range: 0 to 360, repeating
  * 
 */
-export function toRGB({ lightness, chroma, hue }: LCH, options : { gamutCorrectIfNeeded: true    }): RGB
-export function toRGB({ lightness, chroma, hue }: LCH, options?: { gamutCorrectIfNeeded: boolean }): RGB | undefined
-export function toRGB({ lightness, chroma, hue }: LCH, options?: { gamutCorrectIfNeeded: boolean }): RGB | undefined {
-    assert(0 <= lightness && lightness <= 1, 'Lightness must be at least 0 and at most 1', { lightness })
-    assert(0 <= chroma, 'Chroma must be at least 0', { chroma })
-    if (options?.gamutCorrectIfNeeded) {
-        const [ red, green, blue ] = OKLCH_to_RGB([lightness, chroma, hue], true)
-        return { red, green, blue }
+export function toRGB(color: LCH | LAB): RGB | undefined
+export function toRGB(color: LCH | LAB, options : Record<string, never>): RGB | undefined
+export function toRGB(color:       LAB, options : { gamutCorrectIfNeeded : true    }): never
+export function toRGB(color: LCH      , options : { gamutCorrectIfNeeded : true    }): RGB
+export function toRGB(color: LCH | LAB, options : { gamutCorrectIfNeeded : false   }): RGB | undefined
+export function toRGB(color: LCH | LAB, options?: { gamutCorrectIfNeeded?: boolean }): RGB | undefined {
+
+    if ('chroma' in color && 'hue' in color) {
+        const { lightness, chroma, hue } = color
+        assert(0 <= lightness && lightness <= 1, 'Lightness must be at least 0 and at most 1', { lightness })
+        assert(0 <= chroma, 'Chroma must be at least 0', { chroma })
+        
+        if (options?.gamutCorrectIfNeeded) {
+            const [ red, green, blue ] = OKLCH_to_RGB([lightness, chroma, hue], true)
+            return { red, green, blue }
+        }
+        
+        const rgb = OKLCH_to_RGB([lightness, chroma, hue], false)
+        
+        if (rgb !== undefined) return {
+            red   : rgb[0],
+            green : rgb[1],
+            blue  : rgb[2]
+        }
+        
+        return undefined
     }
-    const rgb = OKLCH_to_RGB([lightness, chroma, hue], false)
-    if (rgb === undefined) return undefined
-    const [ red, green, blue ] = rgb
-    return { red, green, blue }
+
+    if ('a' in color && 'b' in color) {
+        const { lightness, a, b } = color
+        assert(0 <= lightness && lightness <= 1, 'Lightness must be at least 0 and at most 1', { lightness })
+        
+        const rgb = linear_sRGB_to_sRGB(OKLAB_to_linear_sRGB([lightness, a, b]))
+        const inGamut = rgb.every( x => 0 <= x && x <= 1 )
+
+        if (inGamut) return {
+            red   : rgb[0],
+            green : rgb[1],
+            blue  : rgb[2]
+        }
+
+        return undefined
+    }
 }
 
 function OKLCH_to_RGB (lch: Triplet, gamutCorrectIfNeeded: true,     needsGamutCorrection?: boolean, step?: number): Triplet
@@ -117,8 +153,8 @@ function OKLAB_to_linear_sRGB ([l, a, b]: Triplet): Triplet {
 
 function linear_sRGB_to_OKLAB([r, g, b]: Triplet): Triplet {
     const L = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
-	const M = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
-	const S = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    const M = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    const S = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
 
     return [
         0.2104542553 * L + 0.7936177850 * M - 0.0040720468 * S,

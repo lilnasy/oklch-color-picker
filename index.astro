@@ -126,11 +126,12 @@
 
                 const x = left - (width / 2)
                 const y = -(top - (height / 2))
-
-                const amplitude = Math.sqrt(x * x + y * y) / (width * 1.5)
-                const angle     = Math.atan2(y, x) * 180 / Math.PI
-                const rgb       = OKLCH.toRGB({ lightness, chroma: amplitude, hue: angle })
-                const index     = pixelPosition * 4
+                
+                const a = x / (width * 1.5)
+                const b = y / (width * 1.5)
+                
+                const rgb   = OKLCH.toRGB({ lightness, a, b })
+                const index = pixelPosition * 4
 
                 if (rgb === undefined) continue
                 
